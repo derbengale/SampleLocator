@@ -1,6 +1,6 @@
 {
-  "name": "Standort-Scanner",
-  "short_name": "Scanner",
+  "name": "SampleScanner",
+  "short_name": "SampleScanner",
   "description": "Raum- und Proben-QR-Codes scannen und den Standort per E-Mail melden",
   "lang": "de",
   "start_url": "./",

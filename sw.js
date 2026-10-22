@@ -1,6 +1,6 @@
 // Standort-Scanner service worker: the app works without network. Pages: network first (a new build arrives at once),
 // everything else: cache first. The cache name changes with every build, so old files are dropped.
-const CACHE = "sdb-scanner-8b7701f81975";
+const CACHE = "sdb-scanner-57502af17003";
 const SHELL = ["./", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {

@@ -12,9 +12,9 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Scanner">
+<meta name="apple-mobile-web-app-title" content="SampleScanner">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>Standort-Scanner</title>
+<title>SampleScanner</title>
 <!--
   Standort-Scanner (Simplest DB) - ONE self-contained file: page, scanner code and the WebAssembly decoder.
   Template: web/qr_reader.template.html - build it with `python build_reader.py` (never edit the generated file).
@@ -205,7 +205,7 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
 <main>
   <header>
     <div class="logo" aria-hidden="true">⌖</div>
-    <h1>Standort-Scanner</h1>
+    <h1>SampleScanner</h1>
     <span class="spacer"></span>
     <span class="chip" id="engineChip">Decoder lädt …</span>
   </header>
@@ -306,6 +306,15 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
     <div id="readCurrent"></div>
     <div id="readList"></div>
   </section>
+  <button class="btn primary" id="installTopBtn" type="button" hidden style="width:100%">📲 Als App installieren</button>
+  <dialog id="installDlg" style="border:1px solid var(--line);border-radius:14px;padding:18px;max-width:340px">
+    <h3 style="margin:0 0 8px">📲 App installieren?</h3>
+    <p style="margin:0 0 14px">Den SampleScanner als App auf diesem Gerät installieren?</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" id="installNo" type="button">Später</button>
+      <button class="btn primary" id="installYes" type="button">Installieren</button>
+    </div>
+  </dialog>
   <details class="card install" id="installBox">
     <summary>📲 Als App installieren</summary>
     <div class="inner">
@@ -316,7 +325,7 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
       <ol>
         <li>Seite in <b>Chrome</b> öffnen.</li>
         <li>Oben auf „App jetzt installieren“ tippen – oder Menü <b>⋮</b> → <b>Zur Startseite hinzufügen</b> bzw. <b>App installieren</b>.</li>
-        <li>Mit <b>Installieren</b> bestätigen. Das Symbol „Scanner“ liegt danach auf dem Startbildschirm.</li>
+        <li>Mit <b>Installieren</b> bestätigen. Das Symbol „SampleScanner“ liegt danach auf dem Startbildschirm.</li>
       </ol>
 
       <h3>iPhone / iPad (Safari) <span class="me" id="meIos" hidden>· dieses Gerät</span></h3>
@@ -1025,6 +1034,7 @@ function applyMode() {
   $('listCard').hidden = mode !== 'loc'; $('assignCard').hidden = mode !== 'assign'; $('readCard').hidden = mode !== 'read';
   document.querySelector('.dock').hidden = home || mode === 'read';
   $('installBox').hidden = !home || !!$('installBox').dataset.gone;
+  $('installTopBtn').hidden = !home || !!$('installBox').dataset.gone || !$('installTopBtn').dataset.on;
   $('modeChip').textContent = MODES[mode] || '';
   const steps = { loc: ['Raum-Code scannen', 'Proben scannen', 'E-Mail senden'], assign: ['Probenname eingeben', 'Codes scannen', 'E-Mail senden'] }[mode];
   if (steps) ['step1t', 'step2t', 'step3t'].forEach((id, i) => { $(id).textContent = steps[i]; });
@@ -1159,17 +1169,27 @@ $('copyBtn').addEventListener('click', async () => {
   state_.textContent = ios ? 'Auf dem iPhone/iPad gibt es keinen Installieren-Knopf – bitte die Schritte für Safari unten befolgen.'
                            : 'Die App läuft danach in einem eigenen Fenster mit eigenem Symbol.';
   let deferred = null;
-  window.addEventListener('beforeinstallprompt', (ev) => {               // Chrome / Edge / Android: the real install dialog
-    ev.preventDefault(); deferred = ev; btn.hidden = false;
-    state_.textContent = 'Dieses Gerät kann die App direkt installieren:';
-  });
-  btn.addEventListener('click', async () => {
-    if (!deferred) return;
+  const top = $('installTopBtn'), dlg = $('installDlg');
+  top.dataset.on = '1';                                                   // button always offered (iOS etc.: opens the instructions)
+  top.hidden = mode !== null;
+  const closeDlg = () => { if (dlg.open) dlg.close(); };
+  const doInstall = async () => {
+    closeDlg();
+    if (!deferred) { box.open = true; box.scrollIntoView({ behavior: 'smooth' }); return; }
     deferred.prompt();
     try { await deferred.userChoice; } catch (_) {}
     deferred = null; btn.hidden = true;
+  };
+  window.addEventListener('beforeinstallprompt', (ev) => {               // Chrome / Edge / Android: the real install dialog
+    ev.preventDefault(); deferred = ev; btn.hidden = false;
+    state_.textContent = 'Dieses Gerät kann die App direkt installieren:';
+    if (mode === null && typeof dlg.showModal === 'function' && !dlg.open) dlg.showModal();   // ask right away
   });
-  window.addEventListener('appinstalled', () => { box.hidden = true; box.dataset.gone = '1'; toast('App installiert', 'ok'); });
+  btn.addEventListener('click', doInstall);
+  top.addEventListener('click', () => { if (deferred && typeof dlg.showModal === 'function') dlg.showModal(); else doInstall(); });
+  $('installYes').addEventListener('click', doInstall);
+  $('installNo').addEventListener('click', closeDlg);
+  window.addEventListener('appinstalled', () => { closeDlg(); top.hidden = true; box.hidden = true; box.dataset.gone = '1'; toast('App installiert', 'ok'); });
 })();
 
 /* ------------------------------------------------------------------ start */
