@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>SampleScanner</title>
 <!--
-  Standort-Scanner (Simplest DB) - ONE self-contained file: page, scanner code and the WebAssembly decoder.
+  SampleScanner - ONE self-contained file: page, scanner code and the WebAssembly decoder.
   Template: web/qr_reader.template.html - build it with `python build_reader.py` (never edit the generated file).
 
   Decoder: zxing-cpp (C++ port of ZXing) compiled to WebAssembly, packaged by zxing-wasm (MIT, (c) Ze-Zheng Wu).
@@ -214,7 +214,7 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
   <section class="home" id="home" aria-label="Funktion wählen">
     <h2>Was möchtest du tun?</h2>
     <button class="choice" id="modeLoc" type="button"><span class="ico" aria-hidden="true">📍</span>
-      <span class="txt"><b>Standort melden</b><span>Raum-Code scannen, dann die Proben im Raum. Der Standort geht per E-Mail an die Datenbank.</span><em id="infoLoc" hidden></em></span></button>
+      <span class="txt"><b>Standort melden</b><span>Raum-Code scannen, dann die Proben im Raum. Der Standort wird per E-Mail gemeldet.</span><em id="infoLoc" hidden></em></span></button>
     <button class="choice" id="modeAssign" type="button"><span class="ico" aria-hidden="true">🏷️</span>
       <span class="txt"><b>QR-Codes zuordnen</b><span>Probenname eingeben, Scanner über die Probe schwenken: höchste Nummer = hinten, niedrigste = vorne. Zuordnung per E-Mail.</span><em id="infoAssign" hidden></em></span></button>
     <button class="choice" id="modeRead" type="button"><span class="ico" aria-hidden="true">🔍</span>
@@ -271,7 +271,7 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
     <form class="assign-entry" id="assignForm" autocomplete="off">
       <label for="assignName">Probenname</label>
       <div class="row">
-        <input id="assignName" placeholder="z. B. KC4261.2" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go">
+        <input id="assignName" placeholder="Probenname" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go">
         <button class="btn primary" id="assignStart" type="submit">Starten</button>
       </div>
       <p>Die QR-Codes einer bereits geschnittenen Probe nachträglich zuordnen: Namen eingeben, dann den Scanner über die Probe mit den Codes schwenken.
@@ -369,7 +369,7 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
 <dialog id="manualDlg">
   <form method="dialog" class="body" id="manualForm">
     <h2>Code eingeben</h2>
-    <p id="manualHelp">Raum-Code (<code>SDB:P:406-KC4</code>), Positionsmarker (<code>S23011234</code>) oder Probenname.</p>
+    <p id="manualHelp">Raum-Code, Positionscode oder Probenname.</p>
     <input id="manualInput" class="btn" style="justify-content:flex-start;width:100%" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="bar" style="padding:0;border:0">
       <button class="btn ghost" id="manualCancel" type="button">Abbrechen</button>
@@ -804,8 +804,8 @@ $('manualForm').addEventListener('submit', () => {
 const MODES = { loc: 'Standort melden', assign: 'QR-Codes zuordnen', read: 'Lesen und anzeigen' };
 const ASSIGN_KEY = 'sdb-assign-scan-v1', READ_KEY = 'sdb-read-scan-v1', MAX_READS = 30;
 const MANUAL_HELP = {
-  loc: 'Raum-Code (<code>SDB:P:406-KC4</code>), Positionsmarker (<code>S23011234</code>) oder Probenname.',
-  assign: 'Positionscode (<code>S23011234</code>: Los + 4 Ziffern) der aktiven Probe.',
+  loc: 'Raum-Code, Positionscode oder Probenname.',
+  assign: 'Positionscode der aktiven Probe.',
   read: 'Beliebigen Code eingeben, um zu sehen, was er bedeutet.',
 };
 let mode = null;                                  // null = start screen | 'loc' | 'assign' | 'read'
@@ -928,6 +928,10 @@ function renderAssign() {
              `<button class="x" data-act="a-rm-code" data-c="${ci}" title="Entfernen" aria-label="Entfernen">✕</button></li>`;
     }).join('');
   }
+  if (mode === 'assign') {                                // camera only while a sample is active (name entered + Starten)
+    $('camCard').hidden = !cur;
+    if (!cur && cam.running) { stopCamera(true); setCamMessage('Zum Scannen die Kamera starten.', true); }
+  }
   $('assignList').innerHTML = assign.items.map((it, i) => {
     if (i === assign.current) return '';
     const e = endsOf(it);
@@ -979,10 +983,10 @@ function describeCode(text) {
   }
   if (POS_RE.test(text)) {
     return { icon: '📏', kind: 'Positionsmarker (Rückseite des Substrats)', title: `Substrat ${lotOf(text)} bei ${fmtM(posOf(text))}`,
-             hint: 'Los-Nummer + Position in 0,1 m. Zu welcher Probe der Code gehört, weiß nur die Datenbank.' };
+             hint: 'Los-Nummer + Position in 0,1 m.' };
   }
   return { icon: '🧪', kind: 'Text-Code (vermutlich Probenname)', title: text,
-           hint: 'Diese Seite ist nicht mit der Datenbank verbunden: Zuordnung zu Probe und Standort erfolgt erst beim Melden per E-Mail.' };
+           hint: 'Die Auswertung erfolgt erst nach dem Senden per E-Mail.' };
 }
 
 function handleReadCode(raw, manual) {
@@ -1029,7 +1033,7 @@ $('readCard').addEventListener('click', async (ev) => {
 /* ---- switching between the functions */
 function applyMode() {
   const home = mode === null;
-  $('home').hidden = !home; $('modeBar').hidden = home; $('camCard').hidden = home;
+  $('home').hidden = !home; $('modeBar').hidden = home; $('camCard').hidden = home || (mode === 'assign' && !curAssign());
   $('steps').hidden = home || mode === 'read';
   $('listCard').hidden = mode !== 'loc'; $('assignCard').hidden = mode !== 'assign'; $('readCard').hidden = mode !== 'read';
   document.querySelector('.dock').hidden = home || mode === 'read';
