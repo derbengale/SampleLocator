@@ -217,8 +217,41 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
       <span class="txt"><b>Standort melden</b><span>Raum-Code scannen, dann die Proben im Raum. Der Standort wird per E-Mail gemeldet.</span><em id="infoLoc" hidden></em></span></button>
     <button class="choice" id="modeAssign" type="button"><span class="ico" aria-hidden="true">🏷️</span>
       <span class="txt"><b>QR-Codes zuordnen</b><span>Probenname eingeben, Scanner über die Probe schwenken: höchste Nummer = hinten, niedrigste = vorne. Zuordnung per E-Mail.</span><em id="infoAssign" hidden></em></span></button>
+    <button class="choice" id="modeRuns" type="button"><span class="ico" aria-hidden="true">⚙️</span>
+      <span class="txt"><b>Runs</b><span>Run-Planung per E-Mail anfordern oder einen laufenden Run beenden (Anlagen-Code scannen).</span><em id="infoRuns" hidden></em></span></button>
+    <button class="choice" id="modeAsk" type="button"><span class="ico" aria-hidden="true">📬</span>
+      <span class="txt"><b>Auskunft per E-Mail</b><span>Informationen zu Proben oder die Übersicht der laufenden Serien – die Antwort kommt an deine E-Mail-Adresse, diese Seite zeigt nichts an.</span><em id="infoAsk" hidden></em></span></button>
+    <button class="choice" id="modeCmt" type="button"><span class="ico" aria-hidden="true">📝</span>
+      <span class="txt"><b>Kommentar</b><span>Einen Kommentar an eine Probe oder an einen laufenden Run anhängen.</span><em id="infoCmt" hidden></em></span></button>
     <button class="choice" id="modeRead" type="button"><span class="ico" aria-hidden="true">🔍</span>
       <span class="txt"><b>Lesen und anzeigen</b><span>Einen Code scannen und anzeigen, was er enthält – es wird nichts gemeldet oder gespeichert.</span><em id="infoRead" hidden></em></span></button>
+  </section>
+
+  <!-- submenu "Runs" -->
+  <section class="home" id="runsMenu" aria-label="Runs" hidden>
+    <h2>Runs</h2>
+    <button class="choice" id="runPlanBtn" type="button"><span class="ico" aria-hidden="true">📋</span>
+      <span class="txt"><b>Run Planung</b><span>Die Datenbank schickt dir per E-Mail die durchzuführenden Runs mit Parametern, Kommentaren und Proben, nach Anlage sortiert – nur für deine Projekte.</span></span></button>
+    <button class="choice" id="runFinishBtn" type="button"><span class="ico" aria-hidden="true">🏁</span>
+      <span class="txt"><b>Run beenden</b><span>QR-Code der Anlage scannen: der laufende Run wird beendet und die Anlage wieder freigegeben.</span><em id="infoFinish" hidden></em></span></button>
+  </section>
+
+  <!-- submenu "Auskunft per E-Mail" -->
+  <section class="home" id="askMenu" aria-label="Auskunft" hidden>
+    <h2>Auskunft per E-Mail</h2>
+    <button class="choice" id="askSampleBtn" type="button"><span class="ico" aria-hidden="true">🧪</span>
+      <span class="txt"><b>Probeninfo</b><span>Proben scannen: du bekommst Projekt, Serie, Standort, Kommentare und den Ablauf (Prozesse, Messungen, Parameter) per E-Mail.</span><em id="infoSinfo" hidden></em></span></button>
+    <button class="choice" id="askOverviewBtn" type="button"><span class="ico" aria-hidden="true">🗂️</span>
+      <span class="txt"><b>Laufende Serien</b><span>Übersicht aller laufenden Serien und Experimente deiner Projekte wie im Probenbaum, mit Prozessen und Messungen – per E-Mail.</span></span></button>
+  </section>
+
+  <!-- submenu "Kommentar" -->
+  <section class="home" id="cmtMenu" aria-label="Kommentar" hidden>
+    <h2>Kommentar</h2>
+    <button class="choice" id="cmtSampleBtn" type="button"><span class="ico" aria-hidden="true">🧪</span>
+      <span class="txt"><b>Kommentar an Probe</b><span>Probe scannen, Text schreiben: er wird mit Datum und Kürzel an den Kommentar der Probe angehängt.</span><em id="infoCsample" hidden></em></span></button>
+    <button class="choice" id="cmtRunBtn" type="button"><span class="ico" aria-hidden="true">⚙️</span>
+      <span class="txt"><b>Kommentar an laufenden Run</b><span>Anlagen-Code scannen, Text schreiben: er wird an den Kommentar des Runs angehängt, der dort gerade läuft.</span><em id="infoCrun" hidden></em></span></button>
   </section>
 
   <nav class="modebar" id="modeBar" aria-label="Funktion" hidden>
@@ -299,6 +332,17 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
       <button class="btn" data-act="a-more" type="button">➕ Weitere Probe</button>
     </div>
     <div id="assignList"></div>
+  </section>
+
+  <!-- modes that collect codes and send them by mail: Run beenden, Probeninfo, Kommentar an Probe / Run (see COLLECT in the script) -->
+  <section class="card" id="collectCard" hidden>
+    <div class="room none" id="collectBanner"></div>
+    <div id="collectList"></div>
+    <div id="cmtBox" style="padding:0 14px 14px" hidden>
+      <label for="cmtText" style="display:block;font-weight:600;margin:6px 0">Kommentar</label>
+      <textarea id="cmtText" rows="4" maxlength="800" placeholder="Text – wird mit Datum und Kürzel angehängt"
+        style="width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:12px;padding:10px;font:inherit;background:var(--card);color:var(--ink)"></textarea>
+    </div>
   </section>
 
   <!-- mode "Lesen und anzeigen": shows what a scanned code means (this page has no connection to the database) -->
@@ -410,6 +454,7 @@ const MAIL_TO = document.documentElement.dataset.mailto;
 const STORE_KEY = 'sdb-location-scan-v1';
 const ROOM_RE = /^SDB:P:([0-9A-Z][0-9A-Z-]{1,38}[0-9A-Z])$/i;       // = place_uid.UID_RE (3-40 characters)
 const POS_RE = /^[A-Za-z0-9]{5}\d{4}$/;
+const DEV_RE = /^SDB:D:([^\s:][^\s]{0,38})$/i;                 // device code (Anlage), printed from the schema editor
 const MAIL_URL_LIMIT = 1700;                  // many mail clients cut mailto: links at ~2000 characters
 
 /* ------------------------------------------------------------------ decoder (Web Worker, fallback: main thread) */
@@ -603,8 +648,8 @@ const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch (
 /** Colour of the outline drawn around a code in the camera picture. */
 function verdictColor(v) {
   if (v === 'room' || v === 'same-room') return '#a78bfa';
-  if (v === 'new' || v === 'moved' || v === 'a-new' || v === 'read') return '#4ade80';
-  if (v === 'no-room' || v === 'a-no-sample' || v === 'a-lot') return '#f87171';
+  if (v === 'new' || v === 'moved' || v === 'a-new' || v === 'read' || v === 'f-new') return '#4ade80';
+  if (v === 'no-room' || v === 'a-no-sample' || v === 'a-lot' || v === 'f-bad') return '#f87171';
   return '#fbbf24';
 }
 
@@ -613,6 +658,7 @@ function handleCode(text, manual = false) {
   if (!mode) return 'ignored';                              // start screen: a late camera result is dropped
   if (mode === 'assign') return handleAssignCode(text);
   if (mode === 'read') return handleReadCode(text, manual);
+  if (COLLECT[mode]) return handleCollectCode(text, manual);
   const r = addScan(text);
   const short = text.length > 34 ? text.slice(0, 33) + '…' : text;
   if (r === 'room') { toast(`📍 ${roomLabel(findRoom(state.current).uid)}`, 'room'); beep(660, 90); setTimeout(() => beep(990, 90), 110); buzz([30, 40, 30]); }
@@ -801,14 +847,51 @@ $('manualForm').addEventListener('submit', () => {
 });
 
 /* ------------------------------------------------------------------ functions: start screen, assign QR codes, read and display */
-const MODES = { loc: 'Standort melden', assign: 'QR-Codes zuordnen', read: 'Lesen und anzeigen' };
-const ASSIGN_KEY = 'sdb-assign-scan-v1', READ_KEY = 'sdb-read-scan-v1', MAX_READS = 30;
+const MODES = { loc: 'Standort melden', assign: 'QR-Codes zuordnen', read: 'Lesen und anzeigen', runs: 'Runs', ask: 'Auskunft', cmt: 'Kommentar',
+                finish: 'Run beenden', sinfo: 'Probeninfo', csample: 'Kommentar an Probe', crun: 'Kommentar an Run' };
+const MENUS = ['runs', 'ask', 'cmt'];                 // submenus (element ids runsMenu / askMenu / cmtMenu)
+const ASSIGN_KEY = 'sdb-assign-scan-v1', READ_KEY = 'sdb-read-scan-v1', COLL_KEY = 'sdb-collect-scan-v1', MAX_READS = 30;
+const DEV_BAD = 'ist kein Anlagen-Code', SAMPLE_BAD = 'ist kein Proben-Code (Raum- und Anlagen-Codes passen hier nicht)';
+/** Functions that collect codes in a list and send them by mail. kind 'dev' = device codes (SDB:D:<code>), 'sample' = any sample code
+ *  or name; `text` = a comment text is written as well. The page only collects text: the listener interprets everything. */
+const COLLECT = {
+  finish:  { parent: 'runs', prefix: 'SDB-FINISH', field: 'device', kind: 'dev', text: false, icon: '🏁', item: '🏭', one: 'Anlage', many: 'Anlagen',
+             none: 'Noch keine Anlage gescannt', hint: 'Run beenden', bad: DEV_BAD,
+             sub: 'Den QR-Code der Anlage scannen, deren Run zu Ende ist – dann „E-Mail senden“. Der Run wird beendet und die Anlage wieder freigegeben.',
+             steps: ['Anlagen-Code scannen', 'Weitere Anlagen (optional)', 'E-Mail senden'] },
+  sinfo:   { parent: 'ask', prefix: 'SDB-INFO', field: 'code', kind: 'sample', text: false, icon: '📬', item: '🧪', one: 'Probe', many: 'Proben',
+             none: 'Noch keine Probe gescannt', hint: 'Info per E-Mail', bad: SAMPLE_BAD,
+             sub: 'Die Proben scannen (Etikett oder Positionscode), über die du Informationen möchtest – dann „E-Mail senden“. Die Antwort kommt per E-Mail.',
+             steps: ['Proben scannen', 'Weitere Proben (optional)', 'E-Mail senden'] },
+  csample: { parent: 'cmt', prefix: 'SDB-COMMENT', field: 'target', kind: 'sample', text: true, icon: '📝', item: '🧪', one: 'Probe', many: 'Proben',
+             none: 'Noch keine Probe gescannt', hint: 'Kommentar wird angehängt', bad: SAMPLE_BAD,
+             sub: 'Probe(n) scannen und den Kommentar schreiben – er wird mit Datum und Kürzel an den bisherigen Kommentar angehängt.',
+             steps: ['Proben scannen', 'Kommentar schreiben', 'E-Mail senden'] },
+  crun:    { parent: 'cmt', prefix: 'SDB-COMMENT', field: 'target', kind: 'dev', text: true, icon: '📝', item: '🏭', one: 'Anlage', many: 'Anlagen',
+             none: 'Noch keine Anlage gescannt', hint: 'Kommentar an den laufenden Run', bad: DEV_BAD,
+             sub: 'Anlagen-Code scannen und den Kommentar schreiben – er wird an den Run angehängt, der dort gerade läuft.',
+             steps: ['Anlagen-Code scannen', 'Kommentar schreiben', 'E-Mail senden'] },
+};
 const MANUAL_HELP = {
   loc: 'Raum-Code, Positionscode oder Probenname.',
   assign: 'Positionscode der aktiven Probe.',
   read: 'Beliebigen Code eingeben, um zu sehen, was er bedeutet.',
+  finish: 'Anlagen-Code, z. B. <b>SDB:D:P2</b>, oder nur der Code der Anlage (P2).',
+  crun: 'Anlagen-Code, z. B. <b>SDB:D:P2</b>, oder nur der Code der Anlage (P2).',
+  sinfo: 'Probenname oder Positionscode.',
+  csample: 'Probenname oder Positionscode.',
 };
-let mode = null;                                  // null = start screen | 'loc' | 'assign' | 'read'
+let mode = null;                                  // null = start screen | 'loc' | 'assign' | 'read' | a submenu (MENUS) | a COLLECT function
+let notes = {};                                   // notes on the chips of the start screen, e.g. { runs: 'Run-Planung angefordert' }
+let coll = {};                                    // COLLECT mode -> { items: [{key, text, at}], text }
+try { coll = JSON.parse(localStorage.getItem(COLL_KEY) || '{}') || {}; } catch (_) {}
+const saveColl = () => { try { localStorage.setItem(COLL_KEY, JSON.stringify(coll)); } catch (_) {} };
+function collOf(m) {
+  const c = coll[m] && typeof coll[m] === 'object' ? coll[m] : (coll[m] = {});
+  c.items = Array.isArray(c.items) ? c.items.filter(x => x && typeof x.key === 'string' && typeof x.text === 'string') : [];
+  if (typeof c.text !== 'string') c.text = '';
+  return c;
+}
 let engineReady = false;
 let assign = { items: [], current: null, done: false };      // items: [{sample, at, codes: [{text, at}]}]
 let assignWarn = '';
@@ -974,8 +1057,69 @@ $('assignCard').addEventListener('click', (ev) => {
   else if (act === 'a-rm-code' && cur) { cur.codes.splice(+b.dataset.c, 1); changed(); }
 });
 
+/* ---- collecting functions (Run beenden, Probeninfo, Kommentar): scan codes, optionally write a comment, send one mail */
+const collReady = (m) => { const c = collOf(m); return c.items.length > 0 && (!COLLECT[m].text || c.text.trim() !== ''); };
+
+/** Add a scanned / typed code. Returns 'f-new' | 'dup' | 'f-bad' | 'empty'. A bare device code (P2) typed by hand counts as SDB:D:P2. */
+function addCollectCode(raw, manual) {
+  const cfg = COLLECT[mode], c = collOf(mode);
+  let text = String(raw || '').trim(), key;
+  if (!text) return 'empty';
+  if (cfg.kind === 'dev') {
+    if (manual && !DEV_RE.test(text) && /^[^\s:]{1,39}$/.test(text)) text = 'SDB:D:' + text;
+    const m = DEV_RE.exec(text);
+    if (!m) return 'f-bad';
+    key = m[1].toUpperCase(); text = 'SDB:D:' + key;
+  } else {
+    if (ROOM_RE.test(text) || DEV_RE.test(text)) return 'f-bad';
+    key = text.toUpperCase();
+  }
+  if (c.items.some(x => x.key === key)) return 'dup';
+  c.items.push({ key, text, at: isoLocal() });
+  saveColl(); renderCollect();
+  return 'f-new';
+}
+function handleCollectCode(raw, manual) {
+  const cfg = COLLECT[mode], r = addCollectCode(raw, manual), short = shorten(String(raw || '').trim());
+  if (r === 'f-new') { toast(`✓ ${shorten(collOf(mode).items[collOf(mode).items.length - 1].text)}`, 'ok'); beep(); buzz(40); }
+  else if (r === 'f-bad') toastOnce(`„${short}“ ${cfg.bad}`, 'bad');
+  return r;
+}
+function renderCollect() {
+  const cfg = COLLECT[mode];
+  if (!cfg) return;
+  const c = collOf(mode), n = c.items.length, ready = collReady(mode);
+  $('step1').className = 'step ' + (n ? 'done' : 'active');
+  $('step2').className = 'step ' + (!n ? '' : cfg.text ? (c.text.trim() ? 'done' : 'active') : 'active');
+  $('step3').className = 'step ' + (ready ? 'active' : '');
+  const banner = $('collectBanner');
+  banner.className = n ? 'room' : 'room none';
+  banner.innerHTML = `<span class="pin">${cfg.icon}</span><div><div class="name">${n ? plural(n, cfg.one, cfg.many) + ' gescannt' : esc(cfg.none)}</div>` +
+    `<div class="sub">${esc(cfg.sub)}</div></div>`;
+  $('collectList').innerHTML = !n ? '' : '<div class="group"><ul class="codes">' + c.items.map((x, i) =>
+    `<li><span class="kind" aria-hidden="true">${cfg.item}</span><span class="txt">${esc(cfg.kind === 'dev' ? x.key : x.text)}<span class="hint">${esc(cfg.hint)}</span></span>` +
+    `<button class="x" data-act="c-rm" data-i="${i}" title="Entfernen" aria-label="Entfernen">✕</button></li>`).join('') + '</ul></div>';
+  $('cmtBox').hidden = !cfg.text;
+  if (cfg.text && $('cmtText').value !== c.text) $('cmtText').value = c.text;
+  $('sendBtn').disabled = $('copyBtn').disabled = !ready;
+  $('clearBtn').disabled = !n && !c.text;
+  $('sendBtn').textContent = n ? `✉ E-Mail senden (${plural(n, cfg.one, cfg.many)})` : '✉ E-Mail senden';
+}
+$('collectCard').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button[data-act="c-rm"]');
+  if (!b || !COLLECT[mode]) return;
+  collOf(mode).items.splice(+b.dataset.i, 1); saveColl(); renderCollect();
+});
+$('cmtText').addEventListener('input', () => {
+  if (!COLLECT[mode]) return;
+  collOf(mode).text = $('cmtText').value; saveColl(); renderCollect();
+});
+function resetCollect(m) { coll[m] = { items: [], text: '' }; saveColl(); $('cmtText').value = ''; }
+
 /* ---- read and display: what does a code mean? (nothing is stored, nothing is sent) */
 function describeCode(text) {
+  const dev = DEV_RE.exec(text);
+  if (dev) return { icon: '🏭', kind: 'Anlagen-Code', title: `Anlage ${dev[1].toUpperCase()}`, hint: 'Mit „Run beenden“ gescannt beendet er den laufenden Run der Anlage.' };
   const room = ROOM_RE.exec(text);
   if (room) {
     const uid = room[1].toUpperCase();
@@ -1032,15 +1176,18 @@ $('readCard').addEventListener('click', async (ev) => {
 
 /* ---- switching between the functions */
 function applyMode() {
-  const home = mode === null;
-  $('home').hidden = !home; $('modeBar').hidden = home; $('camCard').hidden = home || (mode === 'assign' && !curAssign());
-  $('steps').hidden = home || mode === 'read';
+  const home = mode === null, menu = MENUS.includes(mode), cfg = COLLECT[mode];
+  $('home').hidden = !home; MENUS.forEach(m => { $(m + 'Menu').hidden = mode !== m; }); $('modeBar').hidden = home;
+  $('camCard').hidden = home || menu || (mode === 'assign' && !curAssign());
+  $('steps').hidden = home || menu || mode === 'read';
   $('listCard').hidden = mode !== 'loc'; $('assignCard').hidden = mode !== 'assign'; $('readCard').hidden = mode !== 'read';
-  document.querySelector('.dock').hidden = home || mode === 'read';
+  $('collectCard').hidden = !cfg;
+  document.querySelector('.dock').hidden = home || menu || mode === 'read';
+  $('homeBtn').textContent = cfg ? '‹ ' + MODES[cfg.parent] : '‹ Funktion wählen';
   $('installBox').hidden = !home || !!$('installBox').dataset.gone;
   $('installTopBtn').hidden = !home || !!$('installBox').dataset.gone || !$('installTopBtn').dataset.on;
   $('modeChip').textContent = MODES[mode] || '';
-  const steps = { loc: ['Raum-Code scannen', 'Proben scannen', 'E-Mail senden'], assign: ['Probenname eingeben', 'Codes scannen', 'E-Mail senden'] }[mode];
+  const steps = { loc: ['Raum-Code scannen', 'Proben scannen', 'E-Mail senden'], assign: ['Probenname eingeben', 'Codes scannen', 'E-Mail senden'] }[mode] || (cfg && cfg.steps);
   if (steps) ['step1t', 'step2t', 'step3t'].forEach((id, i) => { $(id).textContent = steps[i]; });
   if (MANUAL_HELP[mode]) $('manualHelp').innerHTML = MANUAL_HELP[mode];
   const info = (id, text) => { $(id).textContent = text; $(id).hidden = !text; };
@@ -1048,10 +1195,17 @@ function applyMode() {
   info('infoLoc', nLoc ? `${plural(nLoc, 'Code', 'Codes')} in der Liste` : '');
   info('infoAssign', nAssign ? `${plural(nAssign, 'Probe', 'Proben')} bereit zum Senden` : '');
   info('infoRead', reads.length ? `${reads.length} zuletzt gelesen` : '');
-  if (mode === 'loc') render(); else if (mode === 'assign') renderAssign(); else if (mode === 'read') renderRead();
+  const nColl = (m) => collOf(m).items.length;
+  const pending = (ms) => { const n = ms.reduce((s, m) => s + nColl(m), 0); return n ? `${n} Einträge in der Liste` : ''; };
+  info('infoRuns', notes.runs || pending(['finish']));
+  info('infoAsk', notes.ask || pending(['sinfo']));
+  info('infoCmt', notes.cmt || pending(['csample', 'crun']));
+  for (const m of Object.keys(COLLECT)) info('info' + m[0].toUpperCase() + m.slice(1), nColl(m) ? `${plural(nColl(m), COLLECT[m].one, COLLECT[m].many)} bereit zum Senden` : '');
+  if (mode === 'loc') render(); else if (mode === 'assign') renderAssign(); else if (mode === 'read') renderRead(); else if (cfg) renderCollect();
 }
 function chooseMode(m) {
-  mode = m; applyMode(); window.scrollTo(0, 0);
+  mode = m; notes = {}; applyMode(); window.scrollTo(0, 0);
+  if (MENUS.includes(m)) { if (cam.running) stopCamera(true); if (engineReady) setCamMessage('Zum Scannen die Kamera starten.', true); return; }   // submenu: no camera
   if (m === 'assign' && !curAssign()) { if (!assign.done) $('assignName').focus(); return; }     // the camera starts with the sample name
   if (engineReady && !cam.running) startCamera();
 }
@@ -1064,7 +1218,22 @@ function goHome() {
 $('modeLoc').addEventListener('click', () => chooseMode('loc'));
 $('modeAssign').addEventListener('click', () => chooseMode('assign'));
 $('modeRead').addEventListener('click', () => chooseMode('read'));
-$('homeBtn').addEventListener('click', goHome);
+$('modeRuns').addEventListener('click', () => chooseMode('runs'));
+$('modeAsk').addEventListener('click', () => chooseMode('ask'));
+$('modeCmt').addEventListener('click', () => chooseMode('cmt'));
+$('runFinishBtn').addEventListener('click', () => chooseMode('finish'));
+$('askSampleBtn').addEventListener('click', () => chooseMode('sinfo'));
+$('cmtSampleBtn').addEventListener('click', () => chooseMode('csample'));
+$('cmtRunBtn').addEventListener('click', () => chooseMode('crun'));
+/** A request without data: just the code word; the listener answers to the sender's address (Run Planung, Laufende Serien). */
+function requestMail(word, note, menu) {
+  location.href = codeWordUrl(word);
+  goHome();
+  notes[menu] = note; applyMode();
+}
+$('runPlanBtn').addEventListener('click', () => requestMail('SDB-RUNPLAN', 'Run-Planung angefordert – die Antwort kommt per E-Mail.', 'runs'));
+$('askOverviewBtn').addEventListener('click', () => requestMail('SDB-OVERVIEW', 'Übersicht angefordert – die Antwort kommt per E-Mail.', 'ask'));
+$('homeBtn').addEventListener('click', () => { if (COLLECT[mode]) chooseMode(COLLECT[mode].parent); else goHome(); });
 
 /* ------------------------------------------------------------------ e-mail report */
 const REPORT_HEAD = ['SDB-LOCATION v1', 'Diese E-Mail wird automatisch ausgewertet - bitte unverändert absenden.', ''];
@@ -1082,6 +1251,22 @@ function reportText(entries) {
 }
 function allEntries() { return state.rooms.flatMap(room => room.codes.map(code => [room, code])); }
 
+const mailtoUrl = (subject, body) => `mailto:${MAIL_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+/** Request without data (format: src/tracking/run_mail.py, info_mail.py): just the code word (SDB-RUNPLAN / SDB-OVERVIEW); the listener answers
+ *  with an HTML mail to the sender. */
+function codeWordUrl(word) {
+  const stamp = isoLocal().slice(0, 16).replace('T', ' ');
+  return mailtoUrl(`${word} ${stamp}`, [`${word} v1`, 'Diese E-Mail wird automatisch ausgewertet - bitte unverändert absenden.', '', 'END'].join('\r\n'));
+}
+/** Mail of a COLLECT function: `field: code` per scanned code (+ `text:` last, up to END). Formats: run_mail.py (SDB-FINISH), info_mail.py (SDB-INFO, SDB-COMMENT). */
+const collectText = (cfg, text) => (entries) => {
+  const lines = [`${cfg.prefix} v1`, 'Diese E-Mail wird automatisch ausgewertet - bitte unverändert absenden.', ''];
+  for (const x of entries) lines.push(`${cfg.field}: ${x.text}`);
+  if (cfg.text) lines.push('text: ' + text.trim().replace(/\r?\n/g, '\r\n'));
+  lines.push('END');
+  return lines.join('\r\n');
+};
+
 /** QR assignment mail (format: src/tracking/qr_assign.py): per piece its name, the lowest numbered code (front) and the highest (back).
  *  Only ONE code found: front and back are the same code. */
 function assignText(entries) {
@@ -1095,7 +1280,7 @@ function assignEntries() { return assignReady().map(it => ({ sample: it.sample, 
 /** The e-mails to send: as few as possible, each short enough for a mailto: link. `render(entries)` writes the body. */
 function splitMails(entries, prefix, render) {
   const stamp = isoLocal().slice(0, 16).replace('T', ' ');
-  const mailto = (subject, body) => `mailto:${MAIL_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const mailto = mailtoUrl;
   const groups = []; let cur = [];
   for (const entry of entries) {
     const probe = [...cur, entry];
@@ -1111,6 +1296,7 @@ function splitMails(entries, prefix, render) {
 }
 /** Location reports (subject SDB-LOC ...) or, in the assign function, QR assignments (subject SDB-LOC-ASSIGN ...: still found by the Gmail trash sweep). */
 function buildReports() {
+  if (COLLECT[mode]) return splitMails(collOf(mode).items, COLLECT[mode].prefix, collectText(COLLECT[mode], collOf(mode).text));
   return mode === 'assign' ? splitMails(assignEntries(), 'SDB-LOC-ASSIGN', assignText) : splitMails(allEntries(), 'SDB-LOC', reportText);
 }
 
@@ -1121,11 +1307,9 @@ function sendMail() {
   if (!reports.length) return;
   if (reports.length === 1) {
     location.href = reports[0].url;
-    $('mailTitle').textContent = 'E-Mail vorbereitet';
-    $('mailText').textContent = 'Dein E-Mail-Programm sollte sich geöffnet haben. Nach dem Absenden kannst du die Liste leeren. ' +
-                                'Falls nichts passiert ist: Bericht kopieren und selbst an ' + MAIL_TO + ' senden.' +
-                                (mode === 'assign' ? ' Konnte eine Probe nicht zugeordnet werden, bekommst du eine E-Mail zurück.' : '');
-    $('mailList').innerHTML = '';
+    if (COLLECT[mode]) resetCollect(mode);       // sent: the list (and a comment, which would be appended twice) starts empty
+    goHome();                                   // back to the selection screen instead of a popup
+    return;
   } else {
     $('mailTitle').textContent = `${reports.length} E-Mails nötig`;
     $('mailText').textContent = 'Die Liste ist für eine einzelne E-Mail zu lang. Öffne die E-Mails nacheinander und sende jede ab.';
@@ -1140,10 +1324,11 @@ function sendMail() {
   $('mailDlg').showModal();
 }
 const clearAll = () => {
-  if (mode === 'assign') { assign = { items: [], current: null, done: false }; assignWarn = ''; saveAssign(); renderAssign(); }
+  if (COLLECT[mode]) { resetCollect(mode); renderCollect(); }
+  else if (mode === 'assign') { assign = { items: [], current: null, done: false }; assignWarn = ''; saveAssign(); renderAssign(); }
   else { state = { rooms: [], current: null }; save(); render(); }
 };
-const clearAsk = () => mode === 'assign' ? 'Gesamte Liste (alle Proben mit ihren Codes) leeren?' : 'Gesamte Liste (alle Räume und Codes) leeren?';
+const clearAsk = () => COLLECT[mode] ? 'Liste (und Kommentartext) leeren?' : mode === 'assign' ? 'Gesamte Liste (alle Proben mit ihren Codes) leeren?' : 'Gesamte Liste (alle Räume und Codes) leeren?';
 $('sendBtn').addEventListener('click', sendMail);
 $('mailCloseBtn').addEventListener('click', () => $('mailDlg').close());
 $('mailClearBtn').addEventListener('click', () => { if (confirm(clearAsk())) { clearAll(); $('mailDlg').close(); } });

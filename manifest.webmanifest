@@ -1,7 +1,7 @@
 {
   "name": "SampleScanner",
   "short_name": "SampleScanner",
-  "description": "Raum- und Proben-QR-Codes scannen und den Standort per E-Mail melden",
+  "description": "Raum- und Proben-QR-Codes scannen und per E-Mail melden",
   "lang": "de",
   "start_url": "./",
   "scope": "./",
