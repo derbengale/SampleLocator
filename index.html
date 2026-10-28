@@ -20,7 +20,7 @@
   Template: web/qr_reader.template.html - build it with `python build_reader.py` (never edit the generated file).
 
   Decoder: zxing-cpp (C++ port of ZXing) compiled to WebAssembly, packaged by zxing-wasm (MIT, (c) Ze-Zheng Wu).
-  zxing-wasm 3.1.6 (zxing-cpp als WebAssembly) · erzeugt 2026-10-22
+  zxing-wasm 3.1.6 (zxing-cpp als WebAssembly) · erzeugt 2026-10-28
   The decoder runs in a Web Worker, the page itself never blocks. Nothing is sent anywhere except by the e-mail
   that the user starts with the "E-Mail senden" button.
 -->
@@ -198,6 +198,20 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
 .assign-done b { color: var(--ok); }
 .tag { display: inline-block; padding: 0 7px; margin-right: 6px; border-radius: 999px; font-size: .72rem; border: 1px solid var(--line); color: var(--muted); }
 .tag.front, .tag.back { color: var(--ok); border-color: var(--ok); }
+/* data entry: gravimetric layer thickness */
+.tpoint { border-top: 1px solid var(--line); padding: 10px 14px; display: grid; gap: 8px; }
+.tpoint .tphead { display: flex; gap: 8px; align-items: center; }
+.tpoint input { font: inherit; padding: 9px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); min-width: 0; width: 100%; box-sizing: border-box; }
+.tpoint .tphead input { flex: 1; }
+.tpoint .tpgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tpoint .tpgrid label { display: grid; gap: 2px; font-size: .75rem; color: var(--muted); }
+.tpoint.bad { background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.tpoint .tpnote { color: var(--warn); font-size: .8rem; margin: 0; }
+.thick-density { padding: 0 14px 8px; display: grid; gap: 4px; }
+.thick-density label { font-weight: 650; }
+.thick-density input { font: inherit; padding: 9px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; box-sizing: border-box; }
+.thick-density p, .thick-note { margin: 0; color: var(--muted); font-size: .85rem; }
+.thick-note { padding: 0 14px 10px; }
 .assign-sum { padding: 2px 14px 10px; color: var(--muted); font-size: .88rem; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; overflow-wrap: anywhere; }
 </style>
 </head>
@@ -223,6 +237,10 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
       <span class="txt"><b>Auskunft per E-Mail</b><span>Informationen zu Proben oder die Übersicht der laufenden Serien – die Antwort kommt an deine E-Mail-Adresse, diese Seite zeigt nichts an.</span><em id="infoAsk" hidden></em></span></button>
     <button class="choice" id="modeCmt" type="button"><span class="ico" aria-hidden="true">📝</span>
       <span class="txt"><b>Kommentar</b><span>Einen Kommentar an eine Probe oder an einen laufenden Run anhängen.</span><em id="infoCmt" hidden></em></span></button>
+    <button class="choice" id="modeData" type="button"><span class="ico" aria-hidden="true">📊</span>
+      <span class="txt"><b>Daten eintragen</b><span>Messwerte zu Proben eintragen (z. B. Schichtdicke durch Wägen). Die Datenbank rechnet und antwortet per E-Mail.</span><em id="infoData" hidden></em></span></button>
+    <button class="choice" id="modeFind" type="button"><span class="ico" aria-hidden="true">🎯</span>
+      <span class="txt"><b>Suchhilfe</b><span>Gesuchten Code-Inhalt eingeben: alle Codes im Kamerabild werden markiert – grün = gesucht, gelb = enthält den Inhalt, rot = passt nicht.</span></span></button>
     <button class="choice" id="modeRead" type="button"><span class="ico" aria-hidden="true">🔍</span>
       <span class="txt"><b>Lesen und anzeigen</b><span>Einen Code scannen und anzeigen, was er enthält – es wird nichts gemeldet oder gespeichert.</span><em id="infoRead" hidden></em></span></button>
   </section>
@@ -252,6 +270,13 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
       <span class="txt"><b>Kommentar an Probe</b><span>Probe scannen, Text schreiben: er wird mit Datum und Kürzel an den Kommentar der Probe angehängt.</span><em id="infoCsample" hidden></em></span></button>
     <button class="choice" id="cmtRunBtn" type="button"><span class="ico" aria-hidden="true">⚙️</span>
       <span class="txt"><b>Kommentar an laufenden Run</b><span>Anlagen-Code scannen, Text schreiben: er wird an den Kommentar des Runs angehängt, der dort gerade läuft.</span><em id="infoCrun" hidden></em></span></button>
+  </section>
+
+  <!-- submenu "Daten eintragen" -->
+  <section class="home" id="dataMenu" aria-label="Daten eintragen" hidden>
+    <h2>Daten eintragen</h2>
+    <button class="choice" id="dataThickBtn" type="button"><span class="ico" aria-hidden="true">⚖️</span>
+      <span class="txt"><b>Schichtdicke (gravimetrisch)</b><span>Probe wiegen, Schicht abätzen, wieder wiegen: Massen, Breite und Länge je Messpunkt eintragen. Die Datenbank berechnet die Schichtdicke mit der Dichte des PLD-Targets und antwortet per E-Mail.</span><em id="infoThick" hidden></em></span></button>
   </section>
 
   <nav class="modebar" id="modeBar" aria-label="Funktion" hidden>
@@ -345,6 +370,43 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
     </div>
   </section>
 
+  <!-- mode "Schichtdicke" (Daten eintragen): the sample is scanned or typed, then one block of values per measuring point -->
+  <section class="card" id="thickCard" hidden>
+    <form class="assign-entry" id="thickForm" autocomplete="off">
+      <label for="thickName">Probe</label>
+      <div class="row">
+        <input id="thickName" placeholder="Probenname oder Code" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go">
+        <button class="btn primary" type="submit">Wählen</button>
+      </div>
+      <p>Die Probe scannen (Etikett oder Positionscode) oder den Namen eingeben. Danach für jeden Messpunkt Name, Massen vor und nach dem Ablösen der
+         Schicht sowie Breite und Länge der Probe eintragen. Die Schichtdicke berechnet die Datenbank; die Antwort kommt per E-Mail.</p>
+    </form>
+    <div id="thickCurrent" hidden>
+      <div class="room"><span class="pin">⚖️</span><div><div class="name" id="thickCurName"></div>
+        <div class="sub">Aktive Probe – jeder Messpunkt hat eigene Massen und Maße.</div></div><span style="flex:1"></span>
+        <button class="x" data-act="t-drop" type="button" title="Probe verwerfen" aria-label="Probe verwerfen">🗑</button></div>
+      <div class="thick-density">
+        <label for="thickDensity">Dichte (g/cm³, nur wenn nötig)</label>
+        <input id="thickDensity" inputmode="decimal" placeholder="leer = Dichte des PLD-Targets aus der Probenhistorie" autocomplete="off">
+        <p>Nur eintragen, wenn die Datenbank die Dichte nicht selbst bestimmen kann (z. B. zwei verschiedene Stoffe aufgebracht) – sonst antwortet sie, dass die Dichte fehlt.</p>
+      </div>
+      <div id="thickPoints"></div>
+      <div class="bar">
+        <button class="btn" data-act="t-add" type="button">➕ Messpunkt</button>
+        <span class="grow"></span>
+        <button class="btn" data-act="t-next" type="button">➕ Nächste Probe</button>
+      </div>
+    </div>
+    <div id="thickList"></div>
+  </section>
+
+  <!-- mode "Suchhilfe": every code in the picture is marked: green = equals the search text, yellow = contains it, red = no match -->
+  <section class="card" id="findCard" hidden>
+    <label for="findInput" style="display:block;margin-bottom:6px">Gesuchter Code-Inhalt</label>
+    <input id="findInput" placeholder="z. B. Probenname oder Code" autocomplete="off" autocapitalize="off" spellcheck="false" style="width:100%">
+    <div class="empty" id="findLegend" style="margin-top:8px">✔ grün: identisch · gelb: enthält den Inhalt · ✕ rot: passt nicht</div>
+  </section>
+
   <!-- mode "Lesen und anzeigen": shows what a scanned code means (this page has no connection to the database) -->
   <section class="card" id="readCard" hidden>
     <div id="readCurrent"></div>
@@ -386,7 +448,7 @@ small.foot { display: block; text-align: center; color: var(--muted); font-size:
       <p>Die Kamera braucht eine <b>https://</b>-Adresse; die Liste bleibt auf dem Gerät gespeichert, und die App startet auch ohne Netz.</p>
     </div>
   </details>
-  <small class="foot">zxing-wasm 3.1.6 (zxing-cpp als WebAssembly) · erzeugt 2026-10-22</small>
+  <small class="foot">zxing-wasm 3.1.6 (zxing-cpp als WebAssembly) · erzeugt 2026-10-28</small>
 </main>
 
 <div class="dock" hidden>
@@ -455,6 +517,7 @@ const STORE_KEY = 'sdb-location-scan-v1';
 const ROOM_RE = /^SDB:P:([0-9A-Z][0-9A-Z-]{1,38}[0-9A-Z])$/i;       // = place_uid.UID_RE (3-40 characters)
 const POS_RE = /^[A-Za-z0-9]{5}\d{4}$/;
 const DEV_RE = /^SDB:D:([^\s:][^\s]{0,38})$/i;                 // device code (Anlage), printed from the schema editor
+const CON_RE = /^SDB:C:([0-9A-Z][0-9A-Z-]{1,38}[0-9A-Z])$/i;   // consumable code (e.g. a box of PLD targets: TARGETBOX-3), printed from the consumables editor
 const MAIL_URL_LIMIT = 1700;                  // many mail clients cut mailto: links at ~2000 characters
 
 /* ------------------------------------------------------------------ decoder (Web Worker, fallback: main thread) */
@@ -574,6 +637,7 @@ function addScan(raw) {
 
 /* ------------------------------------------------------------------ rendering */
 function kindOf(text) {
+  if (CON_RE.test(text)) return { icon: '📦', hint: 'Consumable-Code (z. B. Target oder Target-Kiste)' };
   if (POS_RE.test(text)) {
     const lot = text.slice(0, 5).toUpperCase(), tenths = parseInt(text.slice(5), 10);
     return { icon: '📏', hint: `Substrat-Position ${lot} bei ${(tenths / 10).toFixed(1).replace('.', ',')} m` };
@@ -648,6 +712,10 @@ const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch (
 /** Colour of the outline drawn around a code in the camera picture. */
 function verdictColor(v) {
   if (v === 'room' || v === 'same-room') return '#a78bfa';
+  if (v === 'find-hit') return '#22c55e';
+  if (v === 'find-part') return '#facc15';
+  if (v === 'find-miss') return '#ef4444';
+  if (v === 'find-idle') return '#9ca3af';
   if (v === 'new' || v === 'moved' || v === 'a-new' || v === 'read' || v === 'f-new') return '#4ade80';
   if (v === 'no-room' || v === 'a-no-sample' || v === 'a-lot' || v === 'f-bad') return '#f87171';
   return '#fbbf24';
@@ -658,6 +726,8 @@ function handleCode(text, manual = false) {
   if (!mode) return 'ignored';                              // start screen: a late camera result is dropped
   if (mode === 'assign') return handleAssignCode(text);
   if (mode === 'read') return handleReadCode(text, manual);
+  if (mode === 'find') return handleFindCode(text, manual);
+  if (mode === 'thick') return handleThickCode(text);
   if (COLLECT[mode]) return handleCollectCode(text, manual);
   const r = addScan(text);
   const short = text.length > 34 ? text.slice(0, 33) + '…' : text;
@@ -756,7 +826,8 @@ async function onFrame() {
       $('statChip').textContent = `${Math.round(cam.ema)} ms · ${engine.kind}`;
       for (const r of roomsFirst(res.results, x => x.text)) {
         const verdict = handleCode(r.text);
-        cam.marks.push({ poly: mapPolygon(r.position, map), until: performance.now() + 900, color: verdictColor(verdict) });
+        cam.marks.push({ poly: mapPolygon(r.position, map), until: performance.now() + 900, color: verdictColor(verdict),
+                         sym: { 'find-hit': '✔', 'find-part': '', 'find-miss': '✕' }[verdict] || '', solid: String(verdict).startsWith('find-') });
       }
     } catch (err) { console.warn(err); }
     cam.busy = false;
@@ -792,10 +863,18 @@ function drawMarks() {
   octx.lineWidth = 4 * dpr; octx.lineJoin = 'round';
   for (const m of cam.marks) {
     if (!m.poly) continue;
-    octx.strokeStyle = m.color; octx.fillStyle = m.color + '33'; octx.globalAlpha = Math.min(1, (m.until - now) / 400);
+    octx.strokeStyle = m.color; octx.fillStyle = m.color + (m.solid ? '88' : '33'); octx.globalAlpha = Math.min(1, (m.until - now) / 400);
     octx.beginPath();
     m.poly.forEach(([x, y], i) => i ? octx.lineTo(x * overlay.width, y * overlay.height) : octx.moveTo(x * overlay.width, y * overlay.height));
     octx.closePath(); octx.fill(); octx.stroke();
+    if (m.sym) {                                          // Suchhilfe: tick / cross in the middle of the box
+      const cx = m.poly.reduce((s, p) => s + p[0], 0) / m.poly.length * overlay.width, cy = m.poly.reduce((s, p) => s + p[1], 0) / m.poly.length * overlay.height;
+      const size = Math.max(24 * dpr, Math.min(120 * dpr, Math.hypot(m.poly[0][0] - m.poly[2][0] , (m.poly[0][1] - m.poly[2][1]) * overlay.height / overlay.width) * overlay.width * .6));
+      octx.font = `bold ${size}px sans-serif`; octx.textAlign = 'center'; octx.textBaseline = 'middle';
+      octx.lineWidth = 4 * dpr; octx.strokeStyle = '#000'; octx.strokeText(m.sym, cx, cy);
+      octx.fillStyle = '#fff'; octx.fillText(m.sym, cx, cy);
+      octx.lineWidth = 4 * dpr;
+    }
   }
   octx.globalAlpha = 1;
   requestAnimationFrame(drawMarks);
@@ -847,11 +926,13 @@ $('manualForm').addEventListener('submit', () => {
 });
 
 /* ------------------------------------------------------------------ functions: start screen, assign QR codes, read and display */
-const MODES = { loc: 'Standort melden', assign: 'QR-Codes zuordnen', read: 'Lesen und anzeigen', runs: 'Runs', ask: 'Auskunft', cmt: 'Kommentar',
-                finish: 'Run beenden', sinfo: 'Probeninfo', csample: 'Kommentar an Probe', crun: 'Kommentar an Run' };
-const MENUS = ['runs', 'ask', 'cmt'];                 // submenus (element ids runsMenu / askMenu / cmtMenu)
-const ASSIGN_KEY = 'sdb-assign-scan-v1', READ_KEY = 'sdb-read-scan-v1', COLL_KEY = 'sdb-collect-scan-v1', MAX_READS = 30;
-const DEV_BAD = 'ist kein Anlagen-Code', SAMPLE_BAD = 'ist kein Proben-Code (Raum- und Anlagen-Codes passen hier nicht)';
+const MODES = { loc: 'Standort melden', assign: 'QR-Codes zuordnen', find: 'Suchhilfe', read: 'Lesen und anzeigen', runs: 'Runs', ask: 'Auskunft', cmt: 'Kommentar',
+                data: 'Daten eintragen', thick: 'Schichtdicke', finish: 'Run beenden', sinfo: 'Probeninfo', csample: 'Kommentar an Probe',
+                crun: 'Kommentar an Run' };
+const MENUS = ['runs', 'ask', 'cmt', 'data'];         // submenus (element ids runsMenu / askMenu / cmtMenu / dataMenu)
+const PARENT = { thick: 'data' };                    // submenu of the functions that are no COLLECT function
+const ASSIGN_KEY = 'sdb-assign-scan-v1', READ_KEY = 'sdb-read-scan-v1', COLL_KEY = 'sdb-collect-scan-v1', THICK_KEY = 'sdb-thickness-scan-v1', MAX_READS = 30;
+const DEV_BAD = 'ist kein Anlagen-Code', SAMPLE_BAD = 'ist kein Proben-Code (Raum-, Anlagen- und Consumable-Codes passen hier nicht)';
 /** Functions that collect codes in a list and send them by mail. kind 'dev' = device codes (SDB:D:<code>), 'sample' = any sample code
  *  or name; `text` = a comment text is written as well. The page only collects text: the listener interprets everything. */
 const COLLECT = {
@@ -859,9 +940,9 @@ const COLLECT = {
              none: 'Noch keine Anlage gescannt', hint: 'Run beenden', bad: DEV_BAD,
              sub: 'Den QR-Code der Anlage scannen, deren Run zu Ende ist – dann „E-Mail senden“. Der Run wird beendet und die Anlage wieder freigegeben.',
              steps: ['Anlagen-Code scannen', 'Weitere Anlagen (optional)', 'E-Mail senden'] },
-  sinfo:   { parent: 'ask', prefix: 'SDB-INFO', field: 'code', kind: 'sample', text: false, icon: '📬', item: '🧪', one: 'Probe', many: 'Proben',
+  sinfo:   { parent: 'ask', prefix: 'SDB-INFO', field: 'code', kind: 'sample', con: true, text: false, icon: '📬', item: '🧪', one: 'Probe', many: 'Proben',
              none: 'Noch keine Probe gescannt', hint: 'Info per E-Mail', bad: SAMPLE_BAD,
-             sub: 'Die Proben scannen (Etikett oder Positionscode), über die du Informationen möchtest – dann „E-Mail senden“. Die Antwort kommt per E-Mail.',
+             sub: 'Die Proben (oder Consumable-Codes, z. B. Targets und Target-Kisten) scannen, über die du Informationen möchtest – dann „E-Mail senden“. Die Antwort kommt per E-Mail.',
              steps: ['Proben scannen', 'Weitere Proben (optional)', 'E-Mail senden'] },
   csample: { parent: 'cmt', prefix: 'SDB-COMMENT', field: 'target', kind: 'sample', text: true, icon: '📝', item: '🧪', one: 'Probe', many: 'Proben',
              none: 'Noch keine Probe gescannt', hint: 'Kommentar wird angehängt', bad: SAMPLE_BAD,
@@ -878,8 +959,9 @@ const MANUAL_HELP = {
   read: 'Beliebigen Code eingeben, um zu sehen, was er bedeutet.',
   finish: 'Anlagen-Code, z. B. <b>SDB:D:P2</b>, oder nur der Code der Anlage (P2).',
   crun: 'Anlagen-Code, z. B. <b>SDB:D:P2</b>, oder nur der Code der Anlage (P2).',
-  sinfo: 'Probenname oder Positionscode.',
+  sinfo: 'Probenname, Positionscode oder Consumable-Code (SDB:C:...).',
   csample: 'Probenname oder Positionscode.',
+  thick: 'Probenname oder Positionscode.',
 };
 let mode = null;                                  // null = start screen | 'loc' | 'assign' | 'read' | a submenu (MENUS) | a COLLECT function
 let notes = {};                                   // notes on the chips of the start screen, e.g. { runs: 'Run-Planung angefordert' }
@@ -1057,6 +1139,161 @@ $('assignCard').addEventListener('click', (ev) => {
   else if (act === 'a-rm-code' && cur) { cur.codes.splice(+b.dataset.c, 1); changed(); }
 });
 
+/* ---- data entry: gravimetric layer thickness. The sample is scanned or typed; per measuring point name, mass before / after etching
+ *      (mg), width and length (mm, default 12 x 20). The SERVER calculates the thickness (core/thickness.py) and answers by mail. */
+let thick = { items: [], current: null };         // items: [{sample, at, density, points: [{name, before, after, width, length}]}]
+try {
+  const s = JSON.parse(localStorage.getItem(THICK_KEY) || 'null');
+  if (s && Array.isArray(s.items)) thick = { items: s.items.filter(x => x && typeof x.sample === 'string' && Array.isArray(x.points)),
+    current: Number.isInteger(s.current) && s.items[s.current] ? s.current : null };
+} catch (_) {}
+const saveThick = () => { try { localStorage.setItem(THICK_KEY, JSON.stringify(thick)); } catch (_) {} };
+const curThick = () => thick.current === null ? null : (thick.items[thick.current] || null);
+const num = (s) => { const t = String(s ?? '').trim().replace(',', '.'); const v = t === '' ? NaN : Number(t); return Number.isFinite(v) ? v : null; };
+const newPoint = (n) => ({ name: `Messpunkt ${n}`, before: '', after: '', width: '12', length: '20' });
+/** Why a point cannot be sent yet ('' = it can). A point without any mass is just not filled in yet. */
+function pointProblem(p) {
+  const b = num(p.before), a = num(p.after), w = num(p.width), l = num(p.length);
+  if (!String(p.name).trim()) return 'Name fehlt';
+  if (b === null || a === null) return 'Massen fehlen';
+  if (b <= 0 || a < 0) return 'Massen müssen größer als 0 sein';
+  if (a >= b) return 'Masse nachher muss kleiner sein als vorher';
+  if (w === null || l === null || w <= 0 || l <= 0) return 'Breite und Länge müssen größer als 0 sein';
+  return '';
+}
+const thickPoints = (it) => it.points.filter(p => !pointProblem(p));
+const thickReady = () => thick.items.reduce((n, it) => n + thickPoints(it).length, 0);
+const thickSamples = () => thick.items.filter(it => thickPoints(it).length).length;
+const cleanName = (s) => String(s).replace(/[|\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Make the sample (typed name or scanned code; a listed one is reopened) the active one. */
+function startThick(raw) {
+  const name = cleanName(raw);
+  if (!name) return false;
+  let i = thick.items.findIndex(x => x.sample.toLowerCase() === name.toLowerCase());
+  if (i < 0) { thick.items.push({ sample: name, at: isoLocal(), density: '', points: [newPoint(1)] }); i = thick.items.length - 1; }
+  thick.current = i;
+  saveThick(); renderThick();
+  return true;
+}
+function handleThickCode(raw) {
+  const text = String(raw || '').trim(), short = shorten(text);
+  if (!text) return 'empty';
+  if (ROOM_RE.test(text) || DEV_RE.test(text) || CON_RE.test(text)) { toastOnce(`„${short}“ ${SAMPLE_BAD}`, 'bad'); return 'f-bad'; }
+  const cur = curThick();
+  if (cur && cur.sample.toLowerCase() === cleanName(text).toLowerCase()) return 'dup';
+  startThick(text); toast(`✓ ${short}`, 'ok'); beep(); buzz(40);
+  return 'f-new';
+}
+function renderThick() {
+  const cur = curThick(), n = thickReady();
+  $('step1').className = 'step ' + (cur || thick.items.length ? 'done' : 'active');
+  $('step2').className = 'step ' + (cur ? (n ? 'done' : 'active') : '');
+  $('step3').className = 'step ' + (n ? 'active' : '');
+  $('thickForm').hidden = !!cur;
+  $('thickCurrent').hidden = !cur;
+  if (mode === 'thick') {                                  // camera only while no sample is active (scan the next sample)
+    $('camCard').hidden = !!cur;
+    if (cur && cam.running) { stopCamera(true); setCamMessage('Zum Scannen die Kamera starten.', true); }
+  }
+  if (cur) {
+    $('thickCurName').textContent = cur.sample;
+    if ($('thickDensity').value !== cur.density) $('thickDensity').value = cur.density;
+    $('thickPoints').innerHTML = cur.points.map((p, i) => {
+      const why = pointProblem(p), empty = !String(p.before).trim() && !String(p.after).trim();
+      return `<div class="tpoint${why && !empty ? ' bad' : ''}" data-i="${i}"><div class="tphead">` +
+        `<input data-f="name" value="${esc(p.name)}" placeholder="Name des Messpunkts" aria-label="Name des Messpunkts" autocomplete="off">` +
+        `<button class="x" data-act="t-rm" data-i="${i}" title="Messpunkt entfernen" aria-label="Messpunkt entfernen">✕</button></div>` +
+        `<div class="tpgrid"><label>Masse vorher (mg)<input data-f="before" inputmode="decimal" value="${esc(p.before)}" autocomplete="off"></label>` +
+        `<label>Masse nachher (mg)<input data-f="after" inputmode="decimal" value="${esc(p.after)}" autocomplete="off"></label>` +
+        `<label>Breite (mm)<input data-f="width" inputmode="decimal" value="${esc(p.width)}" autocomplete="off"></label>` +
+        `<label>Länge (mm)<input data-f="length" inputmode="decimal" value="${esc(p.length)}" autocomplete="off"></label></div>` +
+        `<p class="tpnote" data-note="${i}"${why && !empty ? '' : ' hidden'}>${esc(why)} – dieser Messpunkt wird nicht gesendet.</p></div>`;
+    }).join('');
+  }
+  $('thickList').innerHTML = thick.items.map((it, i) => {
+    if (i === thick.current) return '';
+    const k = thickPoints(it).length;
+    return `<div class="group"><header><span class="title">⚖️ ${esc(it.sample)}</span><span class="count">${plural(k, 'Messpunkt', 'Messpunkte')}</span><span style="flex:1"></span>` +
+      `<button class="x" data-act="t-open" data-i="${i}" title="Bearbeiten" aria-label="Bearbeiten">✎</button>` +
+      `<button class="x" data-act="t-del" data-i="${i}" title="Probe entfernen" aria-label="Probe entfernen">🗑</button></header>` +
+      `<div class="assign-sum">${k ? esc(thickPoints(it).map(p => cleanName(p.name)).join(', ')) : 'noch kein vollständiger Messpunkt'}</div></div>`;
+  }).join('');
+  updateThickButtons();
+}
+/** Send / copy / clear buttons: without re-drawing the fields (a re-draw would take the focus away while typing). */
+function updateThickButtons() {
+  const n = thickReady(), k = thickSamples();
+  $('sendBtn').disabled = $('copyBtn').disabled = n === 0;
+  $('clearBtn').disabled = !thick.items.length;
+  $('sendBtn').textContent = n ? `✉ E-Mail senden (${plural(k, 'Probe', 'Proben')}, ${plural(n, 'Messpunkt', 'Messpunkte')})` : '✉ E-Mail senden';
+}
+$('thickForm').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  if (!startThick($('thickName').value)) { $('thickName').focus(); return; }
+  $('thickName').value = ''; $('thickName').blur();
+});
+$('thickCard').addEventListener('input', (ev) => {
+  const cur = curThick(), f = ev.target.dataset && ev.target.dataset.f;
+  if (ev.target.id === 'thickDensity' && cur) { cur.density = ev.target.value; saveThick(); updateThickButtons(); return; }
+  const row = ev.target.closest && ev.target.closest('.tpoint');
+  if (!cur || !f || !row) return;
+  const p = cur.points[+row.dataset.i];
+  if (!p) return;
+  p[f] = ev.target.value; saveThick();
+  const why = pointProblem(p), empty = !String(p.before).trim() && !String(p.after).trim();
+  row.classList.toggle('bad', !!why && !empty);
+  const note = row.querySelector('.tpnote');
+  note.hidden = !why || empty; note.textContent = `${why} – dieser Messpunkt wird nicht gesendet.`;
+  updateThickButtons();
+});
+$('thickCard').addEventListener('click', (ev) => {
+  const b = ev.target.closest('button[data-act]');
+  if (!b) return;
+  const act = b.dataset.act, cur = curThick();
+  if (act === 't-add' && cur) { cur.points.push(newPoint(cur.points.length + 1)); saveThick(); renderThick(); }
+  else if (act === 't-rm' && cur) { cur.points.splice(+b.dataset.i, 1); if (!cur.points.length) cur.points.push(newPoint(1)); saveThick(); renderThick(); }
+  else if (act === 't-next') {
+    if (cur && !thickPoints(cur).length && !confirm(`Probe ${cur.sample} hat noch keinen vollständigen Messpunkt und wird nicht gesendet. Trotzdem weiter?`)) return;
+    if (cur && !thickPoints(cur).length) thick.items.splice(thick.current, 1);
+    thick.current = null; saveThick(); renderThick();
+    if (engineReady && !cam.running) startCamera();
+    $('thickName').focus();
+  } else if (act === 't-drop' && cur) {
+    if (thickPoints(cur).length && !confirm(`Probe ${cur.sample} mit ${plural(thickPoints(cur).length, 'Messpunkt', 'Messpunkten')} verwerfen?`)) return;
+    thick.items.splice(thick.current, 1); thick.current = null; saveThick(); renderThick();
+  } else if (act === 't-open') {
+    const target = thick.items[+b.dataset.i];
+    if (!target) return;
+    if (cur && !thickPoints(cur).length) thick.items.splice(thick.current, 1);
+    thick.current = thick.items.indexOf(target); saveThick(); renderThick();
+  } else if (act === 't-del') {
+    thick.items.splice(+b.dataset.i, 1);
+    thick.current = cur ? thick.items.indexOf(cur) : null; if (thick.current < 0) thick.current = null;
+    saveThick(); renderThick();
+  }
+});
+/** Mail `SDB-DATA v1` (format: src/tracking/data_mail.py): per sample its optional density and one `point:` line per complete point. */
+function thickEntries() {
+  const out = [];
+  for (const it of thick.items) {
+    const d = num(it.density);
+    for (const p of thickPoints(it)) out.push({ sample: it.sample, density: d !== null && d > 0 ? String(d) : '', name: cleanName(p.name),
+      before: String(num(p.before)), after: String(num(p.after)), width: String(num(p.width)), length: String(num(p.length)) });
+  }
+  return out;
+}
+const thickText = (entries) => {
+  const lines = ['SDB-DATA v1', 'Diese E-Mail wird automatisch ausgewertet - bitte unverändert absenden.', '', 'kind: thickness'];
+  let last = null;
+  for (const e of entries) {
+    if (e.sample !== last) { lines.push(`sample: ${e.sample}`); if (e.density) lines.push(`density: ${e.density}`); last = e.sample; }
+    lines.push(`point: ${e.name} | ${e.before} | ${e.after} | ${e.width} | ${e.length}`);
+  }
+  lines.push('END');
+  return lines.join('\r\n');
+};
+
 /* ---- collecting functions (Run beenden, Probeninfo, Kommentar): scan codes, optionally write a comment, send one mail */
 const collReady = (m) => { const c = collOf(m); return c.items.length > 0 && (!COLLECT[m].text || c.text.trim() !== ''); };
 
@@ -1071,7 +1308,7 @@ function addCollectCode(raw, manual) {
     if (!m) return 'f-bad';
     key = m[1].toUpperCase(); text = 'SDB:D:' + key;
   } else {
-    if (ROOM_RE.test(text) || DEV_RE.test(text)) return 'f-bad';
+    if (ROOM_RE.test(text) || DEV_RE.test(text) || (!cfg.con && CON_RE.test(text))) return 'f-bad';
     key = text.toUpperCase();
   }
   if (c.items.some(x => x.key === key)) return 'dup';
@@ -1116,8 +1353,25 @@ $('cmtText').addEventListener('input', () => {
 });
 function resetCollect(m) { coll[m] = { items: [], text: '' }; saveColl(); $('cmtText').value = ''; }
 
+/* ---- Suchhilfe: compare every code in the picture with the typed search text (nothing is stored, nothing is sent) */
+function findVerdict(raw) {
+  const q = $('findInput').value.trim().toLowerCase();
+  if (!q) return 'find-idle';
+  const t = String(raw || '').trim().toLowerCase();
+  return t === q ? 'find-hit' : t.includes(q) ? 'find-part' : 'find-miss';
+}
+function handleFindCode(raw, manual) {
+  const v = findVerdict(raw);
+  if (manual) toast({ 'find-hit': '✔ Treffer', 'find-part': 'Enthält den Inhalt', 'find-miss': '✕ Passt nicht', 'find-idle': 'Bitte zuerst den gesuchten Inhalt eingeben' }[v], v === 'find-hit' ? 'ok' : v === 'find-part' ? 'warn' : 'bad');
+  else if (v === 'find-hit') { beep(); buzz(40); }
+  return v;
+}
+
 /* ---- read and display: what does a code mean? (nothing is stored, nothing is sent) */
 function describeCode(text) {
+  const con = CON_RE.exec(text);
+  if (con) return { icon: '📦', kind: 'Consumable-Code', title: `Consumable ${con[1].toUpperCase()}`,
+                    hint: 'Mit „Standort melden“ gescannt wird der Standort des Consumables (z. B. einer Target-Kiste) gemeldet.' };
   const dev = DEV_RE.exec(text);
   if (dev) return { icon: '🏭', kind: 'Anlagen-Code', title: `Anlage ${dev[1].toUpperCase()}`, hint: 'Mit „Run beenden“ gescannt beendet er den laufenden Run der Anlage.' };
   const room = ROOM_RE.exec(text);
@@ -1176,18 +1430,21 @@ $('readCard').addEventListener('click', async (ev) => {
 
 /* ---- switching between the functions */
 function applyMode() {
-  const home = mode === null, menu = MENUS.includes(mode), cfg = COLLECT[mode];
+  const home = mode === null, menu = MENUS.includes(mode), cfg = COLLECT[mode], parent = cfg ? cfg.parent : PARENT[mode];
   $('home').hidden = !home; MENUS.forEach(m => { $(m + 'Menu').hidden = mode !== m; }); $('modeBar').hidden = home;
-  $('camCard').hidden = home || menu || (mode === 'assign' && !curAssign());
-  $('steps').hidden = home || menu || mode === 'read';
+  $('camCard').hidden = home || menu || (mode === 'assign' && !curAssign()) || (mode === 'thick' && !!curThick());
+  $('steps').hidden = home || menu || mode === 'read' || mode === 'find';
+  $('findCard').hidden = mode !== 'find';
   $('listCard').hidden = mode !== 'loc'; $('assignCard').hidden = mode !== 'assign'; $('readCard').hidden = mode !== 'read';
+  $('thickCard').hidden = mode !== 'thick';
   $('collectCard').hidden = !cfg;
-  document.querySelector('.dock').hidden = home || menu || mode === 'read';
-  $('homeBtn').textContent = cfg ? '‹ ' + MODES[cfg.parent] : '‹ Funktion wählen';
+  document.querySelector('.dock').hidden = home || menu || mode === 'read' || mode === 'find';
+  $('homeBtn').textContent = parent ? '‹ ' + MODES[parent] : '‹ Funktion wählen';
   $('installBox').hidden = !home || !!$('installBox').dataset.gone;
   $('installTopBtn').hidden = !home || !!$('installBox').dataset.gone || !$('installTopBtn').dataset.on;
   $('modeChip').textContent = MODES[mode] || '';
-  const steps = { loc: ['Raum-Code scannen', 'Proben scannen', 'E-Mail senden'], assign: ['Probenname eingeben', 'Codes scannen', 'E-Mail senden'] }[mode] || (cfg && cfg.steps);
+  const steps = { loc: ['Raum-Code scannen', 'Proben scannen', 'E-Mail senden'], assign: ['Probenname eingeben', 'Codes scannen', 'E-Mail senden'],
+                  thick: ['Probe wählen', 'Messpunkte eintragen', 'E-Mail senden'] }[mode] || (cfg && cfg.steps);
   if (steps) ['step1t', 'step2t', 'step3t'].forEach((id, i) => { $(id).textContent = steps[i]; });
   if (MANUAL_HELP[mode]) $('manualHelp').innerHTML = MANUAL_HELP[mode];
   const info = (id, text) => { $(id).textContent = text; $(id).hidden = !text; };
@@ -1200,13 +1457,17 @@ function applyMode() {
   info('infoRuns', notes.runs || pending(['finish']));
   info('infoAsk', notes.ask || pending(['sinfo']));
   info('infoCmt', notes.cmt || pending(['csample', 'crun']));
+  const nThick = thickReady();
+  info('infoData', notes.data || (nThick ? `${plural(thickSamples(), 'Probe', 'Proben')} mit Messwerten in der Liste` : ''));
+  info('infoThick', nThick ? `${plural(nThick, 'Messpunkt', 'Messpunkte')} bereit zum Senden` : '');
   for (const m of Object.keys(COLLECT)) info('info' + m[0].toUpperCase() + m.slice(1), nColl(m) ? `${plural(nColl(m), COLLECT[m].one, COLLECT[m].many)} bereit zum Senden` : '');
-  if (mode === 'loc') render(); else if (mode === 'assign') renderAssign(); else if (mode === 'read') renderRead(); else if (cfg) renderCollect();
+  if (mode === 'loc') render(); else if (mode === 'assign') renderAssign(); else if (mode === 'read') renderRead(); else if (mode === 'thick') renderThick(); else if (cfg) renderCollect();
 }
 function chooseMode(m) {
   mode = m; notes = {}; applyMode(); window.scrollTo(0, 0);
   if (MENUS.includes(m)) { if (cam.running) stopCamera(true); if (engineReady) setCamMessage('Zum Scannen die Kamera starten.', true); return; }   // submenu: no camera
   if (m === 'assign' && !curAssign()) { if (!assign.done) $('assignName').focus(); return; }     // the camera starts with the sample name
+  if (m === 'thick' && curThick()) return;                                                       // a sample is open: type the values, no camera
   if (engineReady && !cam.running) startCamera();
 }
 function goHome() {
@@ -1218,9 +1479,12 @@ function goHome() {
 $('modeLoc').addEventListener('click', () => chooseMode('loc'));
 $('modeAssign').addEventListener('click', () => chooseMode('assign'));
 $('modeRead').addEventListener('click', () => chooseMode('read'));
+$('modeFind').addEventListener('click', () => chooseMode('find'));
 $('modeRuns').addEventListener('click', () => chooseMode('runs'));
 $('modeAsk').addEventListener('click', () => chooseMode('ask'));
 $('modeCmt').addEventListener('click', () => chooseMode('cmt'));
+$('modeData').addEventListener('click', () => chooseMode('data'));
+$('dataThickBtn').addEventListener('click', () => chooseMode('thick'));
 $('runFinishBtn').addEventListener('click', () => chooseMode('finish'));
 $('askSampleBtn').addEventListener('click', () => chooseMode('sinfo'));
 $('cmtSampleBtn').addEventListener('click', () => chooseMode('csample'));
@@ -1233,7 +1497,7 @@ function requestMail(word, note, menu) {
 }
 $('runPlanBtn').addEventListener('click', () => requestMail('SDB-RUNPLAN', 'Run-Planung angefordert – die Antwort kommt per E-Mail.', 'runs'));
 $('askOverviewBtn').addEventListener('click', () => requestMail('SDB-OVERVIEW', 'Übersicht angefordert – die Antwort kommt per E-Mail.', 'ask'));
-$('homeBtn').addEventListener('click', () => { if (COLLECT[mode]) chooseMode(COLLECT[mode].parent); else goHome(); });
+$('homeBtn').addEventListener('click', () => { const parent = COLLECT[mode] ? COLLECT[mode].parent : PARENT[mode]; if (parent) chooseMode(parent); else goHome(); });
 
 /* ------------------------------------------------------------------ e-mail report */
 const REPORT_HEAD = ['SDB-LOCATION v1', 'Diese E-Mail wird automatisch ausgewertet - bitte unverändert absenden.', ''];
@@ -1296,18 +1560,26 @@ function splitMails(entries, prefix, render) {
 }
 /** Location reports (subject SDB-LOC ...) or, in the assign function, QR assignments (subject SDB-LOC-ASSIGN ...: still found by the Gmail trash sweep). */
 function buildReports() {
+  if (mode === 'thick') return splitMails(thickEntries(), 'SDB-DATA', thickText);
   if (COLLECT[mode]) return splitMails(collOf(mode).items, COLLECT[mode].prefix, collectText(COLLECT[mode], collOf(mode).text));
   return mode === 'assign' ? splitMails(assignEntries(), 'SDB-LOC-ASSIGN', assignText) : splitMails(allEntries(), 'SDB-LOC', reportText);
 }
 
 let sentMarks = [];
-function openMail(report, btn) { sentMarks.push(btn); btn && btn.classList.add('sent'); location.href = report.url; }
+/** Opens one of several mails; once all of them have been opened, the sent data is deleted and the selection screen shown. */
+function openMail(report, btn, total) {
+  if (!sentMarks.includes(btn)) sentMarks.push(btn);
+  btn && btn.classList.add('sent');
+  location.href = report.url;
+  if (sentMarks.length >= total) { sentMarks = []; clearAll(); $('mailDlg').close(); goHome(); }
+}
 function sendMail() {
   const reports = buildReports();
   if (!reports.length) return;
+  sentMarks = [];
   if (reports.length === 1) {
     location.href = reports[0].url;
-    if (COLLECT[mode]) resetCollect(mode);       // sent: the list (and a comment, which would be appended twice) starts empty
+    clearAll();                                 // sent: the list (and a comment, which would be appended twice) starts empty
     goHome();                                   // back to the selection screen instead of a popup
     return;
   } else {
@@ -1317,18 +1589,19 @@ function sendMail() {
     reports.forEach((r, i) => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'btn';
       b.textContent = `✉ E-Mail ${i + 1} von ${reports.length} öffnen (${r.n} Codes)`;
-      b.addEventListener('click', () => openMail(r, b));
+      b.addEventListener('click', () => openMail(r, b, reports.length));
       $('mailList').appendChild(b);
     });
   }
   $('mailDlg').showModal();
 }
 const clearAll = () => {
-  if (COLLECT[mode]) { resetCollect(mode); renderCollect(); }
+  if (mode === 'thick') { thick = { items: [], current: null }; saveThick(); renderThick(); }
+  else if (COLLECT[mode]) { resetCollect(mode); renderCollect(); }
   else if (mode === 'assign') { assign = { items: [], current: null, done: false }; assignWarn = ''; saveAssign(); renderAssign(); }
   else { state = { rooms: [], current: null }; save(); render(); }
 };
-const clearAsk = () => COLLECT[mode] ? 'Liste (und Kommentartext) leeren?' : mode === 'assign' ? 'Gesamte Liste (alle Proben mit ihren Codes) leeren?' : 'Gesamte Liste (alle Räume und Codes) leeren?';
+const clearAsk = () => mode === 'thick' ? 'Gesamte Liste (alle Proben mit ihren Messpunkten) leeren?' : COLLECT[mode] ? 'Liste (und Kommentartext) leeren?' : mode === 'assign' ? 'Gesamte Liste (alle Proben mit ihren Codes) leeren?' : 'Gesamte Liste (alle Räume und Codes) leeren?';
 $('sendBtn').addEventListener('click', sendMail);
 $('mailCloseBtn').addEventListener('click', () => $('mailDlg').close());
 $('mailClearBtn').addEventListener('click', () => { if (confirm(clearAsk())) { clearAll(); $('mailDlg').close(); } });
