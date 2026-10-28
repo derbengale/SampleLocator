@@ -1,6 +1,6 @@
 // SampleScanner service worker: the app works without network. Pages: network first (a new build arrives at once),
 // everything else: cache first. The cache name changes with every build, so old files are dropped.
-const CACHE = "samplescanner-36a9d3330145";
+const CACHE = "samplescanner-0b0d5ef9c5e6";
 const SHELL = ["./", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
@@ -28,7 +28,7 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(() => caches.match("./"))
+        .catch(() => caches.match("./", { ignoreSearch: true }))
     );
   } else {
     event.respondWith(caches.match(req).then((hit) => hit || fetch(req)));

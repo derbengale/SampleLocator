@@ -1463,15 +1463,46 @@ function applyMode() {
   for (const m of Object.keys(COLLECT)) info('info' + m[0].toUpperCase() + m.slice(1), nColl(m) ? `${plural(nColl(m), COLLECT[m].one, COLLECT[m].many)} bereit zum Senden` : '');
   if (mode === 'loc') render(); else if (mode === 'assign') renderAssign(); else if (mode === 'read') renderRead(); else if (mode === 'thick') renderThick(); else if (cfg) renderCollect();
 }
-function chooseMode(m) {
-  mode = m; notes = {}; applyMode(); window.scrollTo(0, 0);
+/* ---- deep links: every function has an address, e.g. ?find_qr=S25010200  ?comment_current_run&device=P1  (see ROUTES, README) */
+const ROUTES = { locate: 'loc', assign_qr: 'assign', runs: 'runs', finish_run: 'finish', ask: 'ask', sample_info: 'sinfo', comment: 'cmt',
+                comment_sample: 'csample', comment_current_run: 'crun', data: 'data', thickness: 'thick', find_qr: 'find', read: 'read' };
+const ROUTE_OF = Object.fromEntries(Object.entries(ROUTES).map(([k, v]) => [v, k]));
+/** Query parameter that pre-fills the list of a COLLECT function (device = Anlage, sample = Probe; may be repeated). */
+const ROUTE_PARAM = { finish: 'device', crun: 'device', sinfo: 'sample', csample: 'sample' };
+let wantCam = false;                                 // a link opened a scanning function before the decoder was ready
+function syncUrl() {
+  try {
+    const q = mode && ROUTE_OF[mode] ? '?' + ROUTE_OF[mode] : '';
+    if (location.search !== q) history.replaceState(null, '', location.pathname + q + location.hash);
+  } catch (_) {}
+}
+/** Open the function named in the address (first known endpoint wins; unknown parameters are ignored). Returns the mode or null. */
+function applyRoute(search = location.search) {
+  const p = new URLSearchParams(search);
+  const name = [...p.keys()].find(k => Object.prototype.hasOwnProperty.call(ROUTES, k));
+  if (!name) return null;
+  const m = ROUTES[name], param = ROUTE_PARAM[m], values = param ? p.getAll(param).map(v => v.trim()).filter(Boolean) : [];
+  chooseMode(m, { noCamera: values.length > 0 });
+  if (m === 'find') { $('findInput').value = (p.get('find_qr') || '').trim(); }
+  if (values.length) {
+    for (const v of values) {
+      const r = addCollectCode(v, true);
+      if (r === 'f-bad') toast(`„${shorten(v)}“ ${COLLECT[m].bad}`, 'bad');
+    }
+    renderCollect();
+  }
+  return m;
+}
+function chooseMode(m, opts = {}) {
+  mode = m; notes = {}; applyMode(); window.scrollTo(0, 0); syncUrl();
   if (MENUS.includes(m)) { if (cam.running) stopCamera(true); if (engineReady) setCamMessage('Zum Scannen die Kamera starten.', true); return; }   // submenu: no camera
   if (m === 'assign' && !curAssign()) { if (!assign.done) $('assignName').focus(); return; }     // the camera starts with the sample name
   if (m === 'thick' && curThick()) return;                                                       // a sample is open: type the values, no camera
-  if (engineReady && !cam.running) startCamera();
+  if (opts.noCamera) return;                                                                     // pre-filled by a link: start the camera by hand
+  if (engineReady) { if (!cam.running) startCamera(); } else wantCam = true;
 }
 function goHome() {
-  mode = null;
+  mode = null; wantCam = false; syncUrl();
   if (cam.running) stopCamera(true);
   if (engineReady) setCamMessage('Zum Scannen die Kamera starten.', true);
   applyMode(); window.scrollTo(0, 0);
@@ -1656,18 +1687,20 @@ $('copyBtn').addEventListener('click', async () => {
 
 /* ------------------------------------------------------------------ start */
 applyMode();                                                // start screen: the user chooses what to do
+applyRoute();                                               // ... unless a link names the function (?find_qr=..., ?comment_current_run&device=P1)
 engine.start().then(() => {
   engineReady = true;
   $('engineChip').textContent = 'Decoder bereit'; $('engineChip').className = 'chip on';
   setCamMessage('Zum Scannen die Kamera starten.', true);
   const canCamera = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   if (!canCamera) startCamera();                           // shows the explanation
+  else if (wantCam && mode && !cam.running) { wantCam = false; startCamera(); }   // opened by a link
 }).catch((err) => {
   $('engineChip').textContent = 'Decoder-Fehler'; $('engineChip').className = 'chip off';
   setCamMessage('Der Decoder konnte nicht geladen werden: ' + (err && err.message || err), false);
 });
 window.__sdb = { addScan, handleCode, buildReports, reportText, state: () => state, engine, STRATEGIES, decodeBitmap, captureFrame,
-                 chooseMode, goHome, startAssign, addAssignCode, endsOf, assignText, describeCode, assign: () => assign, reads: () => reads, mode: () => mode };
+                 chooseMode, goHome, applyRoute, ROUTES, startAssign, addAssignCode, endsOf, assignText, describeCode, assign: () => assign, reads: () => reads, mode: () => mode };
 })();
 </script>
 </body>
